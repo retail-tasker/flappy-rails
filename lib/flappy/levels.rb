@@ -12,7 +12,7 @@ module Flappy
         name: :potholes,
         title: "Pothole Pass",
         tagline: "Slow roads, and every so often the connection just dies.",
-        phases: [Level.phase(10, "potholes", latency: 300, jitter: 300, reset_chance: 0.02)]
+        phases: [Level.phase(10, "potholes", latency: 300, jitter: 300, reset_chance: 0.05)]
       ),
       Level.new(
         name: :the_tunnel,
@@ -30,7 +30,7 @@ module Flappy
         name: :rural_run,
         title: "Rural Run",
         tagline: "One bar, slow uploads, and the odd dropped connection.",
-        phases: [Level.phase(15, "one bar", latency: 400, jitter: 400, up_kbps: 48, down_kbps: 256, reset_chance: 0.01)]
+        phases: [Level.phase(15, "one bar", latency: 400, jitter: 400, up_kbps: 48, down_kbps: 256, reset_chance: 0.03)]
       ),
       Level.new(
         name: :the_lift,

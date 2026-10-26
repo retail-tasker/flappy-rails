@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1
+
+- Resets are now rolled once per connection, not once per chunk of data. A big page
+  load is no longer cut just for being big. Built-in levels were retuned to match.
+- A small HTTP control panel (`flappy pipe --control PORT`, or `control:` in Ruby) so a
+  test in any language can sign in on clear skies and then switch the weather.
+- `Pipe#play(level)` and `Pipe#stop_level`.
+
 ## 0.1.0
 
 First flight.

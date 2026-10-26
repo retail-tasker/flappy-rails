@@ -2,12 +2,9 @@
 
 Can your test suite make it through the pipes?
 
-```
-   ||        ||              ||
-   ||        ||    >o)       ||        ||
-   ||                        ||        ||
-   ||        ||              ||
-```
+<p align="center">
+  <img src="assets/flappy-rails.svg" alt="Flappy Rails: a small bird flying through green pipes above a railway track" width="100%">
+</p>
 
 Flappy Rails puts a pipe between your tests and your app. The pipe drops,
 delays, throttles and flaps the connection on a loop. Run your suite against it
@@ -17,7 +14,7 @@ Real users are not on office wifi. They are in a lift, in a store with one bar,
 or driving through a dead zone. Your tests passed on a perfect network, so
 nobody knows what happens on the other kind. Now you can find out before they do.
 
-Pure Ruby. No dependencies. Version 0.1.0.
+Pure Ruby. No dependencies.
 
 ## Install
 
@@ -152,7 +149,7 @@ pipe.under(Flappy::Conditions.new(offline: true)) { ... }
 | --- | --- |
 | `latency`, `jitter` | Milliseconds added each time traffic starts moving, plus a random extra. |
 | `up_kbps`, `down_kbps` | Speed caps for uploads and downloads. |
-| `reset_chance` | Chance (0.0 to 1.0) that a connection is cut dead on each chunk. |
+| `reset_chance` | Chance (0.0 to 1.0) that a new connection is cut dead a moment after it opens. |
 | `stall` | Hold all traffic, and new connections, until it clears. |
 | `offline` | Refuse new connections and cut the ones in flight. |
 
@@ -165,6 +162,37 @@ client at it.
 flappy pipe --to 127.0.0.1:3000 --listen 8080 --level the_tunnel
 flappy pipe --to staging.example.com:80 --up-kbps 48 --latency 400
 ```
+
+## Change the weather from outside Ruby
+
+Most real tests sign in on a good connection and only then hit bad weather. Give
+the pipe a control panel and any test, in any language, can flip the weather
+while it runs:
+
+```
+flappy pipe --to 127.0.0.1:3000 --listen 8080 --control 8081
+```
+
+```
+curl -X POST localhost:8081/level/the_tunnel?speed=3   # start a level
+curl -X POST localhost:8081/offline                    # cut everything
+curl -X POST localhost:8081/conditions -d '{"latency": 300, "up_kbps": 64}'
+curl -X POST localhost:8081/clear                      # clear skies
+curl localhost:8081/                                   # what is it doing now?
+```
+
+In a Playwright test:
+
+```js
+await signIn(page)                                            // clear skies
+await fetch('http://127.0.0.1:8081/level/the_tunnel', { method: 'POST' })
+// ...now exercise the offline behaviour...
+await fetch('http://127.0.0.1:8081/clear', { method: 'POST' })
+```
+
+From Ruby, pass `control: 0` to `Flappy.pipe` and read `pipe.control_url`, or just
+set `pipe.conditions` directly. The control panel listens on localhost only. Do
+not expose it.
 
 ## How it works
 

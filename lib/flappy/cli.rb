@@ -27,6 +27,7 @@ module Flappy
         --listen PORT      port to listen on (default: any free port)
         --bind HOST        address to listen on (default: 127.0.0.1)
         --level NAME       play a level on a loop
+        --control PORT     also serve a small HTTP control panel (POST /level/NAME, /offline, /clear ...)
         --speed X          play the level X times faster
         --latency MS  --jitter MS  --up-kbps N  --down-kbps N  --reset PERCENT
         --stall  --offline      fixed conditions when no level is given
@@ -93,6 +94,7 @@ module Flappy
         o.on("--listen PORT", Integer) { |v| options[:port] = v }
         o.on("--bind HOST") { |v| options[:host] = v }
         o.on("--level NAME") { |v| options[:level] = v }
+        o.on("--control PORT", Integer) { |v| options[:control] = v }
         o.on("--speed X", Float) { |v| options[:speed] = v }
         o.on("--latency MS", Integer) { |v| options[:conditions][:latency] = v }
         o.on("--jitter MS", Integer) { |v| options[:conditions][:jitter] = v }
@@ -108,11 +110,13 @@ module Flappy
       pipe_options = { to: options[:to], conditions: Conditions.new(**options[:conditions]) }
       pipe_options[:port] = options[:port] if options[:port]
       pipe_options[:host] = options[:host] if options[:host]
+      pipe_options[:control] = options[:control] if options[:control]
       pipe_options[:on_event] = ->(event, *payload) { announce(event, payload.first) }
 
       pipe = Flappy.pipe(**pipe_options)
       player = options[:level] ? Flappy.level(options[:level]).play(pipe, speed: options.fetch(:speed, 1.0)) : nil
       @out.puts "Flappy pipe listening on #{pipe.url}, sending to #{pipe.to_host}:#{pipe.to_port}"
+      @out.puts "Control panel on #{pipe.control_url}" if pipe.control_url
       @out.puts "Playing #{player.level.title}. Ctrl-C to stop." if player
       wait_for_interrupt
       player&.stop

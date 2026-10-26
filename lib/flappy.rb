@@ -1,5 +1,6 @@
 require_relative "flappy/version"
 require_relative "flappy/conditions"
+require_relative "flappy/control"
 require_relative "flappy/pipe"
 require_relative "flappy/level"
 require_relative "flappy/levels"

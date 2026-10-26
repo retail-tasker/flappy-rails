@@ -19,10 +19,13 @@ module Flappy
 
     attr_reader :host, :port, :to_host, :to_port
 
-    def initialize(to:, port: 0, host: "127.0.0.1", conditions: Conditions.new, seed: nil, on_event: nil)
+    # control: pass a port (0 for any free one) to also start a small HTTP
+    # control server, so tests in any language can change the weather mid-run.
+    def initialize(to:, port: 0, host: "127.0.0.1", conditions: Conditions.new, seed: nil, on_event: nil, control: nil)
       @to_host, @to_port = parse_target(to)
       @host = host
       @listen_port = port
+      @control_port = control
       @conditions = conditions
       @random = Random.new(seed || Random.new_seed)
       @mutex = Mutex.new
@@ -40,11 +43,33 @@ module Flappy
       @running = true
       @acceptor = Thread.new { accept_loop }
       @acceptor.report_on_exception = false
+      @control = Control.new(self, port: @control_port, host: @host).start unless @control_port.nil?
       self
+    end
+
+    # Play a level on this pipe, replacing any level already playing.
+    def play(level, speed: 1.0)
+      stop_level
+      @player = Flappy.level(level).play(self, speed: speed)
+    end
+
+    def stop_level
+      @player&.stop
+      @player = nil
+    end
+
+    def playing
+      @player&.level
+    end
+
+    def control_url
+      @control&.url
     end
 
     def stop
       @running = false
+      stop_level
+      @control&.stop
       begin
         @server&.close
       rescue IOError, SystemCallError
@@ -139,6 +164,7 @@ module Flappy
       connection = Connection.new(client, upstream)
       @mutex.synchronize { @connections << connection }
       count(:connections)
+      doom(connection) if rolled_doomed?
 
       up = Thread.new { pump(client, upstream, :up, connection) }
       down = Thread.new { pump(upstream, client, :down, connection) }
@@ -166,13 +192,6 @@ module Flappy
         current = conditions
         raise IOError, "offline" if current.offline
 
-        if current.reset_chance.positive? && @random.rand < current.reset_chance
-          count(:resets)
-          emit(:reset)
-          reset(connection)
-          return
-        end
-
         now = monotonic
         pause(current) if last_sent.nil? || now - last_sent > IDLE_GAP
         destination.write(data)
@@ -189,6 +208,27 @@ module Flappy
       end
     rescue IOError, SystemCallError
       nil
+    end
+
+    # reset_chance is rolled once per connection, not per chunk, so a big page
+    # load is not cut just for being big. A doomed connection works for a
+    # moment and then dies, the way a dropped signal does.
+    def rolled_doomed?
+      chance = conditions.reset_chance
+      chance.positive? && @random.rand < chance
+    end
+
+    def doom(connection)
+      delay = 0.05 + (@random.rand * 1.5)
+      Thread.new do
+        Thread.current.report_on_exception = false
+        sleep(delay)
+        next unless @mutex.synchronize { @connections.include?(connection) }
+
+        count(:resets)
+        emit(:reset)
+        reset(connection)
+      end
     end
 
     def kbps_for(conditions, direction)

@@ -28,17 +28,39 @@ class PipeTest < Minitest::Test
     assert_operator seconds, :>=, 0.35
   end
 
-  def test_reset_chance_cuts_the_connection
+  def test_a_doomed_connection_works_for_a_moment_then_dies
     start_pipe(conditions: Flappy::Conditions.new(reset_chance: 1.0))
     socket = TCPSocket.new("127.0.0.1", @pipe.port)
     socket.write("doomed")
     assert_raises(EOFError, Errno::ECONNRESET) do
-      IO.select([socket], nil, nil, 2)
-      socket.readpartial(100)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 4
+      loop do
+        raise "connection was never cut" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+
+        socket.readpartial(100) if IO.select([socket], nil, nil, 0.2)
+      end
     end
     assert_operator @pipe.stats[:resets], :>=, 1
   ensure
     socket&.close
+  end
+
+  def test_reset_chance_is_per_connection_not_per_chunk
+    start_pipe(conditions: Flappy::Conditions.new(reset_chance: 0.0))
+    # 400 chunks of data on one connection, and no chance of a reset: it must all arrive.
+    assert_equal 400 * 4096, round_trip("z" * (400 * 4096), timeout: 10).bytesize
+    assert_equal 0, @pipe.stats[:resets]
+  end
+
+  def test_only_some_connections_are_doomed_at_a_middling_chance
+    start_pipe(conditions: Flappy::Conditions.new(reset_chance: 0.5), seed: 42)
+    sockets = Array.new(30) { TCPSocket.new("127.0.0.1", @pipe.port) }
+    sleep 2.2
+    resets = @pipe.stats[:resets]
+    assert_operator resets, :>, 3, "about half of 30 connections should be cut"
+    assert_operator resets, :<, 27, "but not all of them"
+  ensure
+    sockets&.each(&:close)
   end
 
   def test_offline_refuses_new_connections
@@ -90,6 +112,19 @@ class PipeTest < Minitest::Test
       assert_equal 10, pipe.conditions.latency
     end
     assert_predicate @pipe.conditions, :clear?
+  end
+
+  def test_play_and_stop_level_on_the_pipe
+    start_pipe
+    level = Flappy::Level.new(name: :flip, title: "Flip", tagline: "x", phases: [Flappy::Level.phase(5, "down", offline: true)])
+    @pipe.play(level)
+    sleep 0.15
+    assert @pipe.conditions.offline
+    assert_equal :flip, @pipe.playing.name
+
+    @pipe.stop_level
+    assert_predicate @pipe.conditions, :clear?
+    assert_nil @pipe.playing
   end
 
   def test_target_must_look_like_host_and_port
