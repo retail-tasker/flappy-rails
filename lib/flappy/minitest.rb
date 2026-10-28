@@ -18,15 +18,31 @@ module Flappy
   module Minitest
     # Start a pipe in front of `to`, playing the configured level. It is stopped
     # for you when the test finishes.
-    def flappy_pipe(to:, level: Flappy.configured_level, speed: Flappy.configured_speed, seed: Flappy.configured_seed, **options)
+    #
+    # Pass `calm: true` to keep the pipe on clear skies until you call
+    # `flappy_weather!`. Setup (signing in, installing a service worker, seeding
+    # data) usually is not the thing under test, and bad weather there fails
+    # the test before it starts.
+    def flappy_pipe(to:, level: Flappy.configured_level, speed: Flappy.configured_speed, seed: Flappy.configured_seed, calm: false, **options)
       pipe = Flappy.pipe(to: to, seed: seed, **options)
-      player = level ? Flappy.level(level).play(pipe, speed: speed) : nil
+      player = level && !calm ? Flappy.level(level).play(pipe, speed: speed) : nil
       (@flappy_running ||= []) << [pipe, player]
+      (@flappy_calm ||= []) << [pipe, level, speed] if calm && level
       pipe
     end
 
+    # Start the weather on every pipe that was created with `calm: true`. Does
+    # nothing when there is no level to play, so the same test runs unchanged
+    # outside `flappy run`.
+    def flappy_weather!
+      (@flappy_calm || []).each { |pipe, level, speed| pipe.play(level, speed: speed) }
+      @flappy_calm = []
+      nil
+    end
+
     # Rails system tests: put the pipe between the browser and the Capybara
-    # server. Call it from setup, before the first visit.
+    # server. Call it from setup, before the first visit. Takes the same options
+    # as `flappy_pipe`, including `calm: true`.
     def flappy_capybara(level: Flappy.configured_level, **options)
       raise Flappy::Error, "Capybara is not loaded" unless defined?(::Capybara)
 
@@ -47,6 +63,7 @@ module Flappy
         pipe.stop
       end
       @flappy_running = []
+      @flappy_calm = []
       ::Capybara.app_host = @flappy_previous_app_host if @flappy_capybara
       super
     end
