@@ -60,6 +60,26 @@ end
 
 Every `visit` now goes through the pipe.
 
+Setup is rarely what you are testing. Signing in, installing a service worker or
+seeding data on a bad connection fails the test before it starts. Keep the pipe
+on clear skies with `calm: true`, and start the weather when the test is ready:
+
+```ruby
+class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
+  include Flappy::Minitest
+
+  setup { flappy_capybara(calm: true) }
+
+  def sign_in_as(user)
+    # ... sign in on a good connection ...
+    flappy_weather!
+  end
+end
+```
+
+`flappy_weather!` plays the level `flappy run` asked for. Outside `flappy run`
+there is no level, so it does nothing and the same tests run as normal.
+
 ## The gauntlet
 
 ```

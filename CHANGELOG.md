@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `calm: true` on `flappy_pipe` and `flappy_capybara` keeps the pipe on clear skies
+  through setup, and `flappy_weather!` starts the level when the test is ready.
+
 ## 0.1.1
 
 - Resets are now rolled once per connection, not once per chunk of data. A big page

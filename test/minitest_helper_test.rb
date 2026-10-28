@@ -27,6 +27,40 @@ class MinitestHelperTest < Minitest::Test
     assert_equal Flappy.level(:the_tunnel).phases.first.conditions, pipe.conditions
   end
 
+  def test_calm_pipe_stays_clear_until_the_weather_is_started
+    ENV["FLAPPY_LEVEL"] = "the_tunnel"
+    start_echo
+    pipe = flappy_pipe(to: @echo.address, calm: true)
+
+    assert_predicate pipe.conditions, :clear?
+    assert_nil pipe.playing
+
+    flappy_weather!
+
+    assert_equal Flappy.level(:the_tunnel), pipe.playing
+    assert_equal Flappy.level(:the_tunnel).phases.first.conditions, pipe.conditions
+  end
+
+  def test_weather_does_nothing_without_a_level
+    ENV.delete("FLAPPY_LEVEL")
+    start_echo
+    pipe = flappy_pipe(to: @echo.address, calm: true)
+
+    assert_nil flappy_weather!
+    assert_predicate pipe.conditions, :clear?
+  end
+
+  def test_weather_starts_once
+    ENV["FLAPPY_LEVEL"] = "the_tunnel"
+    start_echo
+    pipe = flappy_pipe(to: @echo.address, calm: true)
+    flappy_weather!
+    player = pipe.instance_variable_get(:@player)
+    flappy_weather!
+
+    assert_same player, pipe.instance_variable_get(:@player)
+  end
+
   def test_pipes_are_stopped_after_the_test
     start_echo
     pipe = flappy_pipe(to: @echo.address)
