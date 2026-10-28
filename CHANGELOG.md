@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `calm: true` on `flappy_pipe` and `flappy_capybara` keeps the pipe on clear skies
+  through setup, and `flappy_weather!` starts the level when the test is ready. A calm
+  pipe that never gets its weather fails the test in teardown, so a forgotten call
+  cannot pass on clear skies. `flappy_weather!(pipe)` starts one pipe.
+
 ## 0.1.1
 
 - Resets are now rolled once per connection, not once per chunk of data. A big page

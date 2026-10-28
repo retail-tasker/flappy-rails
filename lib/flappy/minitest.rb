@@ -18,15 +18,35 @@ module Flappy
   module Minitest
     # Start a pipe in front of `to`, playing the configured level. It is stopped
     # for you when the test finishes.
-    def flappy_pipe(to:, level: Flappy.configured_level, speed: Flappy.configured_speed, seed: Flappy.configured_seed, **options)
+    #
+    # Pass `calm: true` to keep the pipe on clear skies until you call
+    # `flappy_weather!`. Setup (signing in, installing a service worker, seeding
+    # data) usually is not the thing under test, and bad weather there fails
+    # the test before it starts.
+    def flappy_pipe(to:, level: Flappy.configured_level, speed: Flappy.configured_speed, seed: Flappy.configured_seed, calm: false, **options)
       pipe = Flappy.pipe(to: to, seed: seed, **options)
-      player = level ? Flappy.level(level).play(pipe, speed: speed) : nil
+      player = level && !calm ? Flappy.level(level).play(pipe, speed: speed) : nil
       (@flappy_running ||= []) << [pipe, player]
+      (@flappy_calm ||= []) << [pipe, level, speed] if calm && level
       pipe
     end
 
+    # Start the weather on the calm pipes: every one, or just `pipe`. Call it
+    # after setup and before the behaviour under test. Returns the pipes it
+    # started. Does nothing when there is no level to play, so the same test
+    # runs unchanged outside `flappy run`.
+    #
+    # A calm pipe that is never started would let the test pass on clear skies
+    # and prove nothing, so the test fails in teardown if one is left over.
+    def flappy_weather!(pipe = nil)
+      started, @flappy_calm = (@flappy_calm || []).partition { |entry| pipe.nil? || entry.first.equal?(pipe) }
+      started.each { |calm_pipe, level, speed| calm_pipe.play(level, speed: speed) }
+      started.map(&:first)
+    end
+
     # Rails system tests: put the pipe between the browser and the Capybara
-    # server. Call it from setup, before the first visit.
+    # server. Call it from setup, before the first visit. Takes the same options
+    # as `flappy_pipe`, including `calm: true`.
     def flappy_capybara(level: Flappy.configured_level, **options)
       raise Flappy::Error, "Capybara is not loaded" unless defined?(::Capybara)
 
@@ -42,13 +62,19 @@ module Flappy
     end
 
     def after_teardown
+      forgotten = @flappy_calm || []
       (@flappy_running || []).each do |pipe, player|
         player&.stop
         pipe.stop
       end
       @flappy_running = []
+      @flappy_calm = []
       ::Capybara.app_host = @flappy_previous_app_host if @flappy_capybara
       super
+      return if forgotten.empty?
+
+      raise Flappy::Error, "#{forgotten.size} calm pipe(s) never got their weather: call flappy_weather! " \
+                           "after setup, or this test passes on clear skies and proves nothing"
     end
   end
 end
