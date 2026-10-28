@@ -77,8 +77,15 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
 end
 ```
 
-`flappy_weather!` plays the level `flappy run` asked for. Outside `flappy run`
-there is no level, so it does nothing and the same tests run as normal.
+`flappy_weather!` plays the level `flappy run` asked for. Call it after setup and
+before the behaviour you are testing. Outside `flappy run` there is no level, so
+it does nothing and the same tests run as normal.
+
+Forget it and the test never sees bad weather, which would be a pass that proves
+nothing. So a calm pipe that never got its weather fails the test in teardown.
+
+With more than one pipe, `flappy_weather!` starts all of them. Pass a pipe to
+start just that one: `flappy_weather!(api_pipe)`. It returns the pipes it started.
 
 ## The gauntlet
 
